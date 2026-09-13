@@ -1,7 +1,6 @@
 /* 常駐部分: タスクトレイ、低レベルマウスフック、多重起動防止 */
 #include "cursoring.h"
 #include <shellapi.h>
-#include <wtsapi32.h>
 
 #define WM_TRAY        (WM_APP + 1)
 #define WM_OPEN_EDITOR (WM_APP + 2)
@@ -9,7 +8,6 @@
 #define TIMER_WATCH    2
 #define TIMER_SIMLOSS  3
 #define WATCH_MS       1000
-#define STATS_TICKS    600   /* 10 分ごとに補正回数をログへ */
 
 enum { ID_ENABLE = 100, ID_JUMP, ID_EDITOR, ID_RELOAD, ID_OPENINI, ID_EXIT };
 
@@ -25,7 +23,7 @@ static HICON g_iconOn, g_iconOff;
 static UINT  g_msgTaskbarCreated;
 
 /* フックと監視タイマーは同じスレッドで動くので排他は不要 */
-static ULONG g_hookCalls, g_moved, g_blocked;
+static ULONG g_hookCalls;
 
 static BOOL CursorIsClipped(void)
 {
@@ -50,7 +48,6 @@ static LRESULT CALLBACK LowLevelMouseProc(int code, WPARAM wp, LPARAM lp)
         if (!skip && GetCursorPos(&cur) && !CursorIsClipped()) {
             MapResult r = Map_Translate(&g_cfg, Map_MonitorAt(&g_cfg, cur), ms->pt, &out);
             if (r != MAP_PASS) {
-                if (r == MAP_MOVE) g_moved++; else g_blocked++;
                 SetCursorPos(out.x, out.y);
                 return 1;
             }
@@ -59,12 +56,10 @@ static LRESULT CALLBACK LowLevelMouseProc(int code, WPARAM wp, LPARAM lp)
     return CallNextHookEx(g_hook, code, wp, lp);
 }
 
-static void InstallHook(const WCHAR *reason)
+static void InstallHook(void)
 {
     if (g_hook) UnhookWindowsHookEx(g_hook);
     g_hook = SetWindowsHookExW(WH_MOUSE_LL, LowLevelMouseProc, g_inst, 0);
-    if (g_hook) Log_Write(L"hook installed (%s)", reason);
-    else        Log_Write(L"hook install FAILED (%s) err=%lu", reason, GetLastError());
 }
 
 /* 1 秒ごとの監視。
@@ -73,7 +68,7 @@ static void InstallHook(const WCHAR *reason)
 static void Watch(void)
 {
     static POINT lastPos;
-    static ULONG lastCalls, ticks, reinstalls, lastMoved, lastBlocked;
+    static ULONG lastCalls, ticks;
     static int silent;
 
     POINT pos;
@@ -82,15 +77,7 @@ static void Watch(void)
         if (moved && g_hookCalls == lastCalls) {
             if (++silent >= 3) {
                 silent = 0;
-                reinstalls++;
-                /* ペン入力などフックを通らない移動で繰り返し起きうるので、ログは間引く */
-                if (reinstalls <= 3 || reinstalls % 100 == 0) {
-                    Log_Write(L"watchdog: cursor moved for 3s without hook calls (#%lu)", reinstalls);
-                    InstallHook(L"watchdog");
-                } else {
-                    if (g_hook) UnhookWindowsHookEx(g_hook);
-                    g_hook = SetWindowsHookExW(WH_MOUSE_LL, LowLevelMouseProc, g_inst, 0);
-                }
+                InstallHook();
             }
         } else {
             silent = 0;
@@ -101,15 +88,9 @@ static void Watch(void)
 
     ticks++;
     if (ticks % 2 == 0 && Cfg_LayoutChanged(&g_cfg)) {
-        Log_Write(L"layout check: monitor configuration differs from loaded config -> reload");
         KillTimer(g_wnd, TIMER_RELOAD);
         Cfg_Load(&g_cfg);
         if (Editor_Window()) PostMessageW(Editor_Window(), WM_APP, 0, 0);
-    }
-    if (ticks % STATS_TICKS == 0 && (g_moved != lastMoved || g_blocked != lastBlocked)) {
-        Log_Write(L"stats: moved=%lu blocked=%lu hookCalls=%lu", g_moved, g_blocked, g_hookCalls);
-        lastMoved = g_moved;
-        lastBlocked = g_blocked;
     }
 }
 
@@ -173,8 +154,7 @@ static void TrayUpdate(DWORD msg)
     nid.hIcon = g_cfg.enabled ? g_iconOn : g_iconOff;
     wcscpy_s(nid.szTip, ARRAYSIZE(nid.szTip),
              g_cfg.enabled ? APP_NAME L" " APP_VERSION L" - 補正 有効" : APP_NAME L" " APP_VERSION L" - 補正 無効");
-    if (!Shell_NotifyIconW(msg, &nid) && msg == NIM_ADD)
-        Log_Write(L"tray icon add failed (taskbar not ready?)");
+    Shell_NotifyIconW(msg, &nid);
 }
 
 static void ShowTrayMenu(void)
@@ -238,7 +218,6 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         }
         return 0;
     case WM_DISPLAYCHANGE:
-        Log_Write(L"WM_DISPLAYCHANGE %ux%u", LOWORD(lp), HIWORD(lp));
         /* 接続/解像度変更の直後は構成が落ち着くまで少し待つ */
         SetTimer(hwnd, TIMER_RELOAD, 1500, NULL);
         return 0;
@@ -249,31 +228,15 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
             /* 検証用: ハンドルは残したままフックだけ外し、Windows に黙って外された状態を再現する */
             KillTimer(hwnd, TIMER_SIMLOSS);
             UnhookWindowsHookEx(g_hook);
-            Log_Write(L"simulate-hook-loss: hook removed silently");
         }
         return 0;
-    case WM_POWERBROADCAST:
-        if (wp == PBT_APMSUSPEND) Log_Write(L"power: suspend");
-        else if (wp == PBT_APMRESUMEAUTOMATIC) Log_Write(L"power: resume");
-        return TRUE;
-    case WM_WTSSESSION_CHANGE: {
-        static const WCHAR *names[] = { L"?", L"console connect", L"console disconnect", L"remote connect",
-                                        L"remote disconnect", L"logon", L"logoff", L"lock", L"unlock" };
-        Log_Write(L"session: %s", wp < ARRAYSIZE(names) ? names[wp] : L"other");
-        return 0;
-    }
     case WM_DESTROY:
         KillTimer(hwnd, TIMER_WATCH);
-        WTSUnRegisterSessionNotification(hwnd);
         TrayUpdate(NIM_DELETE);
         PostQuitMessage(0);
         return 0;
     default:
-        if (msg == g_msgTaskbarCreated && msg != 0) {
-            Log_Write(L"TaskbarCreated -> re-add tray icon");
-            TrayUpdate(NIM_ADD);
-            return 0;
-        }
+        if (msg == g_msgTaskbarCreated && msg != 0) { TrayUpdate(NIM_ADD); return 0; }
     }
     return DefWindowProcW(hwnd, msg, wp, lp);
 }
@@ -292,9 +255,6 @@ int WINAPI wWinMain(HINSTANCE hinst, HINSTANCE prev, PWSTR cmd, int show)
     }
 
     g_inst = hinst;
-    Log_Init();
-    Log_Write(L"===== start %s %s pid=%lu uptime=%llus", APP_NAME, APP_VERSION,
-              GetCurrentProcessId(), GetTickCount64() / 1000);
     g_iconOn  = MakeIcon(GetSystemMetrics(SM_CXSMICON), TRUE);
     g_iconOff = MakeIcon(GetSystemMetrics(SM_CXSMICON), FALSE);
     Cfg_Load(&g_cfg);
@@ -310,9 +270,8 @@ int WINAPI wWinMain(HINSTANCE hinst, HINSTANCE prev, PWSTR cmd, int show)
                             0, 0, 0, 0, NULL, NULL, hinst, NULL);
     g_msgTaskbarCreated = RegisterWindowMessageW(L"TaskbarCreated");
     TrayUpdate(NIM_ADD);
-    WTSRegisterSessionNotification(g_wnd, NOTIFY_FOR_THIS_SESSION);
 
-    InstallHook(L"startup");
+    InstallHook();
     if (!g_hook)
         MessageBoxW(NULL, L"マウスフックを設定できませんでした。", APP_NAME, MB_ICONERROR);
     SetTimer(g_wnd, TIMER_WATCH, WATCH_MS, NULL);
@@ -329,7 +288,6 @@ int WINAPI wWinMain(HINSTANCE hinst, HINSTANCE prev, PWSTR cmd, int show)
     }
 
     if (g_hook) UnhookWindowsHookEx(g_hook);
-    Log_Write(L"exit (moved=%lu blocked=%lu)", g_moved, g_blocked);
     if (mutex) CloseHandle(mutex);
     return 0;
 }

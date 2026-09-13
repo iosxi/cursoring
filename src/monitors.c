@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <wchar.h>
 
-void Cfg_SidePath(WCHAR *buf, DWORD cch, const WCHAR *ext)
+void Cfg_IniPath(WCHAR *buf, DWORD cch)
 {
     DWORD n = GetModuleFileNameW(NULL, buf, cch);
     WCHAR *dot = NULL;
@@ -14,12 +14,7 @@ void Cfg_SidePath(WCHAR *buf, DWORD cch, const WCHAR *ext)
         else if (buf[i] == L'\\') dot = NULL;
     }
     if (dot) *dot = 0;
-    wcscat_s(buf, cch, ext);
-}
-
-void Cfg_IniPath(WCHAR *buf, DWORD cch)
-{
-    Cfg_SidePath(buf, cch, L".ini");
+    wcscat_s(buf, cch, L".ini");
 }
 
 typedef struct { const Config *cfg; int seen; BOOL changed; } CheckCtx;
@@ -284,17 +279,6 @@ void Cfg_Load(Config *cfg)
         Cfg_Normalize(cfg);
         Cfg_Save(cfg);  /* 初回起動・新しいモニタ接続時に ini を作成/追記 */
     }
-
-    Log_Write(L"monitors: %d (enabled=%d jumpGaps=%d ignoreInjected=%d maxJumpPx=%d)%s",
-              cfg->count, cfg->enabled, cfg->jumpGaps, cfg->ignoreInjected, cfg->maxJumpPx,
-              missing ? L" [auto-layout applied]" : L"");
-    for (int i = 0; i < cfg->count; i++) {
-        const Monitor *m = &cfg->mon[i];
-        Log_Write(L"  %d: %s %s px=(%ld,%ld)-(%ld,%ld) size=%.1fx%.1fmm pos=(%.1f,%.1f)%s%s",
-                  i + 1, m->device, m->name, m->px.left, m->px.top, m->px.right, m->px.bottom,
-                  m->wmm, m->hmm, m->xmm, m->ymm, placed[i] ? L"" : L" [no ini]",
-                  m->primary ? L" primary" : L"");
-    }
 }
 
 static void WriteDouble(const WCHAR *sec, const WCHAR *key, double v, const WCHAR *ini)
@@ -313,8 +297,7 @@ void Cfg_Save(const Config *cfg)
     WritePrivateProfileStringW(L"General", L"IgnoreInjected", cfg->ignoreInjected ? L"1" : L"0", ini);
     swprintf_s(buf, 64, L"%d", cfg->maxJumpPx);
     WritePrivateProfileStringW(L"General", L"MaxJumpPx", buf, ini);
-    swprintf_s(buf, 64, L"%u", GetPrivateProfileIntW(L"General", L"Log", 1, ini));
-    WritePrivateProfileStringW(L"General", L"Log", buf, ini);
+    WritePrivateProfileStringW(L"General", L"Log", NULL, ini);  /* v2 が書いた不要な項目を消す */
     for (int i = 0; i < cfg->count; i++) {
         const Monitor *m = &cfg->mon[i];
         WCHAR sec[160];
