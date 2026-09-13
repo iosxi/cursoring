@@ -12,6 +12,7 @@
 #include <windows.h>
 
 #define APP_NAME     L"cursoring"
+#define APP_VERSION  L"v2"
 #define MAX_MONITORS 16
 
 typedef struct Monitor {
@@ -34,7 +35,9 @@ typedef struct Config {
 } Config;
 
 /* monitors.c */
+void  Cfg_SidePath(WCHAR *buf, DWORD cch, const WCHAR *ext);  /* exe と同じ場所・同じ名前で拡張子だけ変えたパス */
 void  Cfg_IniPath(WCHAR *buf, DWORD cch);
+BOOL  Cfg_LayoutChanged(const Config *cfg);  /* 実際のモニタ構成が cfg と食い違っているか */
 void  Cfg_Load(Config *cfg);           /* モニタ列挙 + EDID + ini 読み込み */
 void  Cfg_Save(const Config *cfg);
 void  Cfg_AutoLayout(Config *cfg);      /* ピクセル配置から物理配置を作り直す */
@@ -45,6 +48,10 @@ typedef enum { MAP_PASS = 0, MAP_MOVE, MAP_BLOCK } MapResult;
 int       Map_MonitorAt(const Config *cfg, POINT pt);
 MapResult Map_Translate(const Config *cfg, int cur, POINT pt, POINT *out);
 BOOL      Map_PixelToMM(const Config *cfg, POINT pt, double *fx, double *fy);
+
+/* log.c */
+void Log_Init(void);
+void Log_Write(const WCHAR *fmt, ...);
 
 /* editor.c */
 void Editor_Open(HINSTANCE hinst, HICON icon);
