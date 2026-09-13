@@ -1,5 +1,5 @@
 /* Map_Translate の単体テスト。ピクセル配置は実機 (4K + 1080p 右下) と同じにしてある。 */
-#include "../src/lbmlite.h"
+#include "../src/cursoring.h"
 #include <stdio.h>
 #include <stdlib.h>
 

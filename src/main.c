@@ -1,5 +1,5 @@
 /* 常駐部分: タスクトレイ、低レベルマウスフック、多重起動防止 */
-#include "lbmlite.h"
+#include "cursoring.h"
 #include <shellapi.h>
 
 #define WM_TRAY        (WM_APP + 1)

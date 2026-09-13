@@ -1,6 +1,6 @@
-/* LBMLite - 物理サイズを考慮してモニタ間のカーソル移動を補正する軽量常駐ツール */
-#ifndef LBMLITE_H
-#define LBMLITE_H
+/* cursoring - 物理サイズを考慮してモニタ間のカーソル移動を補正する軽量常駐ツール */
+#ifndef CURSORING_H
+#define CURSORING_H
 
 #ifndef UNICODE
 #define UNICODE
@@ -11,7 +11,7 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 
-#define APP_NAME     L"LBMLite"
+#define APP_NAME     L"cursoring"
 #define MAX_MONITORS 16
 
 typedef struct Monitor {

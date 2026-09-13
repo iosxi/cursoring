@@ -1,5 +1,5 @@
 /* レイアウト設定画面: 物理サイズで描いたモニタをドラッグして実際の配置に合わせる */
-#include "lbmlite.h"
+#include "cursoring.h"
 #include <math.h>
 #include <stdio.h>
 #include <wchar.h>

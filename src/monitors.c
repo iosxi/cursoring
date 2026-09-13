@@ -1,5 +1,5 @@
 /* モニタ列挙、EDID からの物理サイズ取得、ini の読み書き */
-#include "lbmlite.h"
+#include "cursoring.h"
 #include <shellscalingapi.h>
 #include <stdio.h>
 #include <stdlib.h>

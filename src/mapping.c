@@ -1,6 +1,6 @@
 /* ピクセル座標 <-> 物理座標(mm) の変換と、モニタ境界を越えるときの移動先計算。
  * Win32 の状態に触れない純粋な計算だけを置き、単体テストできるようにしている。 */
-#include "lbmlite.h"
+#include "cursoring.h"
 #include <math.h>
 
 int Map_MonitorAt(const Config *cfg, POINT pt)
