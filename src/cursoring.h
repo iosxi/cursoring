@@ -12,7 +12,12 @@
 #include <windows.h>
 
 #define APP_NAME     L"cursoring"
-#define APP_VERSION  L"v3"
+#define APP_VERSION  L"v4"
+
+/* アイコンリソースの ID (src/cursoring.rc と合わせる) */
+#define IDI_APP      1
+#define IDI_APP_OFF  2
+
 #define MAX_MONITORS 16
 
 typedef struct Monitor {

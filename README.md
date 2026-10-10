@@ -81,10 +81,16 @@ build.bat        :: build\cursoring.exe を作成
 build.bat test   :: あわせて座標変換の単体テストを実行
 ```
 
+アイコン (`src/cursoring.ico`, `src/cursoring-off.ico`) は `tools/make_icon.py` (Python + Pillow) で
+生成してコミットしてあるので、ビルドに Python は要りません。図柄を変えたときだけ
+`python tools/make_icon.py` を実行してください。
+
 | ファイル | 内容 |
 |---|---|
 | `src/main.c` | 常駐・トレイ・マウスフック |
 | `src/mapping.c` | ピクセル⇔物理座標の変換と移動先の計算 |
 | `src/monitors.c` | モニタ列挙、EDID 読み取り、ini 読み書き |
 | `src/editor.c` | レイアウト設定画面 |
+| `src/cursoring.rc` | アイコンの埋め込み (有効時 / 無効時) |
+| `tools/make_icon.py` | アイコンの生成。16/20/24px は画素単位で描き、32px 以上は縮小で作る |
 | `test/test_mapping.c` | `mapping.c` の単体テスト |

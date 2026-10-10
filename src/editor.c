@@ -459,7 +459,7 @@ void Editor_Open(HINSTANCE hinst, HICON icon)
         wc.lpfnWndProc = EditorProc;
         wc.hInstance = hinst;
         wc.hCursor = LoadCursorW(NULL, IDC_ARROW);
-        wc.hIcon = icon;
+        wc.hIcon = LoadIconW(hinst, MAKEINTRESOURCEW(IDI_APP));  /* Alt+Tab 用の大きいアイコン */
         wc.hIconSm = icon;
         wc.lpszClassName = APP_NAME L"_Editor";
         RegisterClassExW(&wc);

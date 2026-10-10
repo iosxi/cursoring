@@ -94,53 +94,12 @@ static void Watch(void)
     }
 }
 
-/* 大小2つのモニタを並べた図柄のアイコンを実行時に描く (リソースファイル不要) */
-static HICON MakeIcon(int size, BOOL on)
+/* トレイ用の小さいアイコンを埋め込みリソース (src/cursoring.rc) から読む */
+static HICON LoadSmallIcon(int id)
 {
-    BITMAPINFO bi = {0};
-    bi.bmiHeader.biSize = sizeof(bi.bmiHeader);
-    bi.bmiHeader.biWidth = size;
-    bi.bmiHeader.biHeight = -size;
-    bi.bmiHeader.biPlanes = 1;
-    bi.bmiHeader.biBitCount = 32;
-    bi.bmiHeader.biCompression = BI_RGB;
-    DWORD *px;
-    HDC dc = GetDC(NULL);
-    HBITMAP color = CreateDIBSection(dc, &bi, DIB_RGB_COLORS, (void **)&px, NULL, 0);
-    ReleaseDC(NULL, dc);
-    HBITMAP mask = CreateBitmap(size, size, 1, 1, NULL);
-    if (!color || !mask) return LoadIconW(NULL, IDI_APPLICATION);
-
-    DWORD frame = on ? 0xFF1E3A5F : 0xFF505050;
-    DWORD fill  = on ? 0xFF4FA3E0 : 0xFFA0A0A0;
-    DWORD fill2 = on ? 0xFF7CD67C : 0xFFB8B8B8;
-    /* 単位は size/16 */
-    struct { int l, t, r, b; DWORD f; } rects[2] = {
-        { 0, 2, 10, 12, fill },
-        { 10, 7, 16, 12, fill2 },
-    };
-    for (int y = 0; y < size; y++) {
-        for (int x = 0; x < size; x++) {
-            DWORD c = 0;
-            for (int k = 0; k < 2; k++) {
-                int l = rects[k].l * size / 16, t = rects[k].t * size / 16;
-                int r = rects[k].r * size / 16, b = rects[k].b * size / 16;
-                if (x >= l && x < r && y >= t && y < b) {
-                    BOOL edge = x == l || x == r - 1 || y == t || y == b - 1;
-                    c = edge ? frame : rects[k].f;
-                }
-            }
-            /* 台座 */
-            if (y >= 13 * size / 16 && y < 14 * size / 16 + 1 && x >= 3 * size / 16 && x < 7 * size / 16)
-                c = frame;
-            px[y * size + x] = c;
-        }
-    }
-    ICONINFO ii = { TRUE, 0, 0, mask, color };
-    HICON icon = CreateIconIndirect(&ii);
-    DeleteObject(color);
-    DeleteObject(mask);
-    return icon;
+    int cx = GetSystemMetrics(SM_CXSMICON), cy = GetSystemMetrics(SM_CYSMICON);
+    HICON icon = (HICON)LoadImageW(g_inst, MAKEINTRESOURCEW(id), IMAGE_ICON, cx, cy, LR_DEFAULTCOLOR);
+    return icon ? icon : LoadIconW(NULL, IDI_APPLICATION);
 }
 
 static void TrayUpdate(DWORD msg)
@@ -255,15 +214,15 @@ int WINAPI wWinMain(HINSTANCE hinst, HINSTANCE prev, PWSTR cmd, int show)
     }
 
     g_inst = hinst;
-    g_iconOn  = MakeIcon(GetSystemMetrics(SM_CXSMICON), TRUE);
-    g_iconOff = MakeIcon(GetSystemMetrics(SM_CXSMICON), FALSE);
+    g_iconOn  = LoadSmallIcon(IDI_APP);
+    g_iconOff = LoadSmallIcon(IDI_APP_OFF);
     Cfg_Load(&g_cfg);
 
     WNDCLASSW wc = {0};
     wc.lpfnWndProc = WndProc;
     wc.hInstance = hinst;
     wc.lpszClassName = APP_NAME L"_Tray";
-    wc.hIcon = g_iconOn;
+    wc.hIcon = LoadIconW(hinst, MAKEINTRESOURCEW(IDI_APP));
     RegisterClassW(&wc);
     /* WM_DISPLAYCHANGE と TaskbarCreated を受けるため、メッセージ専用ではなく非表示のトップレベル窓にする */
     g_wnd = CreateWindowExW(WS_EX_TOOLWINDOW, wc.lpszClassName, APP_NAME, WS_POPUP,

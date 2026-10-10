@@ -1,0 +1,4 @@
+// アイコンは tools/make_icon.py で生成する。ID は cursoring.h の IDI_APP / IDI_APP_OFF と合わせる。
+// 最初のアイコン (1) がエクスプローラーで exe のアイコンになる。
+1 ICON "cursoring.ico"
+2 ICON "cursoring-off.ico"
